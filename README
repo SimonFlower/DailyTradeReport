@@ -1,0 +1,144 @@
+Analysis on Daily Trade Reporting Engine task
+=============================================
+
+The task is to read trading data as in the example from the project specification and then generate 3 reports:
+
+o Amount in USD settled incoming everyday
+o Amount in USD settled outgoing everyday
+o Ranking of entities based on incoming and outgoing amount. Eg: If entity foo instructs the highest amount for a buy instruction, then foo is rank 1 for outgoing
+
+Some of the code for the project is general (e.g. the code to do with handling 'raw' trading data), some specific to the project. The package structure I will use will reflect this library / program division, to allow the project to be divided up into multiple projects for code re-use if need be in the future.
+
+
+Classes for the project
+=======================
+
+Data will be held in an external file in CSV format as Excel provides an easy way to create test data. The Apache Commons CSV library will be used to handle reading CSV files. The CSV file should have a header line using followed by any number of data lines. The values in the header cells are not read by the program so any strings may be used. Columns for the file should be the same as for the example data table in the project specification. Dates should be formatted as dd-MMM-yyyy (3 digit month names).
+
+Java double type will be used to store money values as the 7 digit precision of a float may be insufficient.
+
+An important feature of Date objects used in this application that all Date values for the same day have the same time portion as each other. Time information is not part of the description of a transaction, so the time is not needed for reporting, but other parts of the application need to be able to compare dates by date only (and not time).
+
+
+Business rules
+--------------
+
+A class called BusinesRules implements the buisness rules from the project specification as static methods. Grouping the buisness rules in a single class makes it easier to find and update them when needed. This class implements the rules:
+
+o USD amount of a trade = Price per unit * Units * Agreed Fx
+o A work week starts Monday and ends Friday, unless the currency of the trade is AED or SAR, where the work week starts Sunday and ends Thursday. No other holidays to be taken into account.
+o A trade can only be settled on a working day.
+o If an instructed settlement date falls on a weekend, then the settlement date should be changed to the next working day.
+
+Input data handling
+-------------------
+
+A class called TradingData holds a single data record read from an input file. The class can also write to the store to create sample date
+    The class will be immutable as there are no operations that require updates to any of the fields
+    Constructor that takes a CSVRecord and unpacks the individual cells.
+        Calculates the actual settlement date from the nominal date
+        Throws an IOException if there is an error with the CSV
+    Constructor that allows individual private members to be initialised (for testing purposes)
+    Getter methods to return individual fields
+    Method "calcPriceUSD" to return USD amount of a trade as a double
+    
+A class called TradingDataList the reads a CSV file of trading data into an array of TradingData objects
+    Constructor takes the filename of the CSV file to read
+        Throws an IOException if there is an error with the CSV
+    Getter method to give access to the TradingData records
+The store of input data will be held in memory using a List of TradingData objects. The List will be implemented with an ArrayList - the extra performance of LinkedList insertion / deletion of objects in the interior of the list is not needed.
+
+Output report handling
+----------------------
+
+A class called SettlementsAndRankings holds accumulated settlement and ranking data for a given range of dates. The class will accumulate settlement data via an append method
+    Constructor that takes a Date object describing the date for which settlements are valid.
+        If the date is null, there will be no bound on dates.
+    Method "append" that takes a TradingData object and appends its data to settlement and ranking calculations
+        Throws a RunTimeException if the actual settlement date in the TradingData is not equal to the date passed in the constructor
+    Method getIncomingTotalUSD to get the accumulated incoming settlements
+    Method getOutgoingTotalUSD to get the accumulated outgoing settlements
+    Method createIncomingRankings to get an array of entity rankings for incoming settlements
+    Method createOutgoingRankings to get an array of entity rankings for outgoing settlements
+    Method getEarliestAcutalSettlementDate to get the earliest settlement date
+    Method getLatestAcutalSettlementDate to get the latest settlement date
+    Method getAllowedDate to get the date bound passed to the constructor
+    Method getNSettlements to get the number of settlements
+
+The SettlementsAndRankings class can be used to find ranking data for a single day or for any arbitary range of dates (the project specification isn't clear about whether the ranking data is required for individual days or for the entire input data set).
+
+A class called DailySettlementsAndRankings uses a Map to hold daily accumulated SettlementsAndRankings data.
+    Constructor that creates the Map
+    Method "append" that takes a TradingData object and appends its data to the daily settlement and ranking calculations
+    Method "getDailySAR" to get a sorted list of daily SettlementAndRankings objects.
+    
+The store of daily report data will be maintained using a TreeMap of Dates and SettlementsAndRankings objects. The TreeMap automatically sorts the entries by date (which is a nice feaure for the report).
+
+An additional SettlementsAndRankings object will be used to calculate rankings data for the entire input data set.
+
+  
+Main program
+------------
+
+The main program ties together other classes to control the application. It's tempting to create more classes to implement a model-view-controller architecture, which would allow the application to be more easily developed in the future, but this seems like over engineering for this project.
+
+The main program:
+
+1) Creates a TradingDataList object which reads in the CSV data file specified on the command line
+2) Creates a SettlementsAndRankings object and appends each TradingData object from the TradingDataList
+3) Uses the getter methods in SettlementsAndRankings to make the report, printing the daily setllements and entity rankings to the console.
+4) Handle any exceptions, displaying diagnostic information to the user
+
+Interaction with the user is confined to the main program, so the user interface can be easily maintained 
+
+
+Caveats
+-------
+
+This solution does not address what to do when entities trade the same amount. At present they are ranked next to each other rather than being ranked equal, though it can be seen that they are equal from the cash value of their trades.
+
+
+Test classes for the project
+============================    
+
+JUnit tests are provided for classes whose logic is complex enough to merit testing. The usual JUnit naming convention is used to name the test classes in relation to the classes being tested (suffix 'Test' added to the class name).
+
+
+Building and running the program
+================================
+
+In these instructions $SRC_HOME is the folder where the project source code has been unpacked (contains the folder "src" and Maven's build file "pom.xml").
+
+Build instructions are for using a command line tool or shell.
+
+Pre-requisites:
+    The code was compiled on Windows 7, Service Pack 1 using ORACLE JDK 1.8.0 update 111
+        The JDK tools (e.g. javac) must be available in the shell's path
+    The code was built using Apache Maven 3.0.5
+        Maven executables (e.g. mvn) must be available in the hell's path
+    The machine building the software must have INTERNET access to allow Maven to download its dependencies
+    
+Instructuctions to build the software:
+    cd $SRC_HOME
+    mvn package
+This will run the JUnit tests after the application has been built.
+
+Instruction to create javadoc:
+    cd $SRC_HOME
+    mvn javadoc:javadoc
+The generated documentation will be placed in the folder target/site
+
+Instructions to test the software:
+    cd $SRC_HOME
+    mvn test
+
+Instructions to create a CSV file:
+An example CSV file is provided in the projects root folder.
+
+Instructions to run the software:
+    cd $SRC_HOME
+    mvn exec:java -Dexec.mainClass="uk.co.jpm.TradeReport.DailyTradeReport" -Dexec.classpathScope=runtime <file.csv>
+e.g. to use the example file:
+    mvn exec:java -Dexec.mainClass="uk.co.jpm.TradeReport.DailyTradeReport" -Dexec.classpathScope=runtime -Dexec.args="exampleTradingData.csv"
+
+
