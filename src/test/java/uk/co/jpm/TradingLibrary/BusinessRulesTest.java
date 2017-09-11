@@ -1,8 +1,6 @@
 package uk.co.jpm.TradingLibrary;
 
-import com.sun.xml.internal.ws.api.client.ServiceInterceptor;
 import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.TimeZone;
 import org.junit.Test;
